@@ -39,9 +39,7 @@ export function createApp(): Hono {
 }
 
 /**
- * Prefixes every page's <title> with the platform name and adds it under the
- * sidebar brand, so two servers on different platforms are told apart. Must
- * be registered before the page routes for Hono to run it around them.
+ * Must be registered before the page routes for Hono to run it around them.
  *
  * @spec SERV-026
  */

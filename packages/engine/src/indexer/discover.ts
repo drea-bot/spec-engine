@@ -205,12 +205,7 @@ export function readPlatformMap(dir: string): PlatformReading | null {
   return { mapped: map(abs), located };
 }
 
-/**
- * The platform's display name: the platform file's `name`, else the
- * directory's name. Never a path.
- *
- * @spec SERV-026
- */
+/** @spec SERV-026 */
 export function platformName(platformDir: string): string {
   return readPlatformMap(platformDir)?.mapped.name ?? basename(resolve(platformDir));
 }

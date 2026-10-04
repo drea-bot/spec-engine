@@ -58,10 +58,7 @@ const MAX_EDITOR_BODY_BYTES = 64 * 1024;
 /**
  * CR-01 same-origin guard + DNS-rebinding Host pin (1.1) for the browser-facing
  * editor POSTs. Mirrors the engine's `rejectCrossOrigin`:
- *   1. Host pin (unconditional): the server binds `bindHost` only, so a request
- *      whose own Host is neither a loopback name nor that address is a rebind
- *      (attacker DNS → the bound address) — reject. The same-origin check below cannot see it because
- *      the attacker's Origin and Host agree.
+ *   1. Host pin (unconditional): `isServedHostname`.
  *   2. Same-origin: a present `Origin` whose host differs from the request host
  *      (or an unparseable Origin) is a cross-site post → reject.
  * A same-origin form post carries a matching Origin (or, for the in-process

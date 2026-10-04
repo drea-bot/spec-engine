@@ -3,13 +3,8 @@
 // Dogfood (spec self-consumes this repo — see spec-engine/):
 // @spec SERV-019
 //
-// Locks the CLI surface and the single-address bind for `spec serve`.
-//
 // Three test families:
-//   1. SOURCE-GREP tests over `packages/engine/src/commands/serve.ts`:
-//        a. The probe binds a hardcoded `hostname: "127.0.0.1"`; the real
-//           serve binds the validated `host`, whose default is loopback.
-//        b. The substring `0.0.0.0` never appears (case-sensitive).
+//   1. SOURCE-GREP tests over `packages/engine/src/commands/serve.ts`.
 //   2. REAL-SERVE in-process smoke: `composeServeApp(storage)` returns a
 //      Hono that, bound on Bun.serve port 0 / 127.0.0.1, answers
 //      `/api/coverage` with 200 (proves engine + webapp are composed).
@@ -140,7 +135,7 @@ describe("composeServeApp (real serve mode composition)", () => {
 });
 
 describe("platform identity", () => {
-  test("the API and every page name the platform from its platform file, never a path", async () => {
+  test("the API and the coverage page name the platform from its platform file, never a path", async () => {
     // @spec SERV-026 integration
     const storage = openStorage(resolve(clone, ".spec-engine", "index.sqlite"));
     await runIndex({ platformDir: clone, storage });

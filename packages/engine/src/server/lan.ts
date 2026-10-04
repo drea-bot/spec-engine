@@ -1,9 +1,7 @@
 // packages/engine/src/server/lan.ts
 //
-// LAN mode for `spec serve`: the --host validator and the request gate that
-// wraps Bun.serve's fetch on a non-loopback bind. The gate sits OUTSIDE the
-// Hono app on purpose — the webapp's in-process `app.request` forwards never
-// pass through it, so a page reading its own `/api/*` needs no token.
+// The gate wraps Bun.serve's fetch, not the Hono app: the webapp's in-process
+// `app.request` reads of its own /api/* must not need the token.
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
@@ -20,7 +18,6 @@ export interface LanGateOptions {
   allowWrites: boolean;
 }
 
-/** The first two octets of a dotted-quad IPv4 address, or null. */
 function ipv4Prefix(ip: string): [number, number] | null {
   const parts = ip.split(".");
   // Reject "010"-style octets: some resolvers read them as octal.
@@ -41,9 +38,7 @@ function isPrivateIPv4([a, b]: [number, number]): boolean {
 }
 
 /**
- * Validates a --host value. Returns null when `raw` may be bound, otherwise
- * the refusal message. Only a literal loopback, RFC 1918, or 100.64.0.0/10
- * address passes; the wildcard addresses, hostnames, and public IPs do not.
+ * Null when `raw` may be bound, otherwise the refusal message.
  *
  * @spec SERV-020
  */
@@ -60,17 +55,15 @@ export function bindHostRefusal(raw: string): string | null {
   return null;
 }
 
-/** A URL host component for `ip` (IPv6 needs brackets). */
 export function urlHost(ip: string, port: number): string {
   return `${isIP(ip) === 6 ? `[${ip}]` : ip}:${port}`;
 }
 
-/** 256 random bits, hex-encoded. */
 export function generateToken(): string {
   return randomBytes(32).toString("hex");
 }
 
-/** Null when a --token / SPEC_SERVE_TOKEN value is usable, otherwise why not. */
+/** Null when a pinned token is usable, otherwise the refusal message. */
 export function pinnedTokenRefusal(token: string): string | null {
   // The token travels verbatim in a cookie and a query string.
   if (!/^[A-Za-z0-9_-]+$/.test(token)) return "the access token may only contain A-Z a-z 0-9 _ -";
@@ -84,9 +77,9 @@ function digest(value: string): Buffer {
   return createHash("sha256").update(value).digest();
 }
 
-/** Constant-time: both sides are hashed to equal length before comparing. */
 function tokenMatches(candidate: string | null | undefined, token: string): boolean {
   if (!candidate) return false;
+  // timingSafeEqual throws on unequal lengths; hashing equalizes them.
   return timingSafeEqual(digest(candidate), digest(token));
 }
 
@@ -100,6 +93,7 @@ function cookieValue(header: string | null, name: string): string | null {
 
 function isWrite(req: Request, url: URL): boolean {
   if (req.method !== "GET" && req.method !== "HEAD") return true;
+  // The provenance page resolves issues through the tracker, which writes the sidecar.
   if (url.pathname === "/provenance") return true;
   return url.pathname === "/api/provenance" && url.searchParams.has("resolve");
 }
@@ -116,12 +110,6 @@ function plain(status: number, body: string, headers: Record<string, string> = {
 }
 
 /**
- * Wraps `fetch` for a non-loopback bind. In order: the Host pin (403), the
- * token query-parameter exchange (302 + cookie) or cookie check (401), then
- * the read-only refusal (403) unless `allowWrites`. The `/provenance` page is
- * a write because it resolves issues through the tracker and writes the
- * sidecar.
- *
  * @spec SERV-021
  * @spec SERV-022
  * @spec SERV-024

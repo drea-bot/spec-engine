@@ -175,13 +175,7 @@ function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
  * T-21-01 same-origin guard for the state-changing routes, plus a
  * DNS-rebinding Host pin (1.1). Two independent checks:
  *
- * 1. Host pin (unconditional): the server binds exactly one address
- *    (`bindHost`, commands/serve.ts), so a write whose own Host is neither a
- *    loopback name nor that address did not come from a page we served — it is
- *    a rebind (attacker DNS → the bound address, `Host: evil.example`). The Origin/Host same-origin check below
- *    cannot catch this because both headers are attacker-controlled and AGREE.
- *    The in-process `app.request()` forward synthesizes `http://localhost/…`,
- *    so it passes.
+ * 1. Host pin (unconditional): `isServedHostname`.
  * 2. Same-origin (only when an `Origin` header is present): its host MUST
  *    equal the request's own host. A cross-site browser form post carries a
  *    mismatched Origin and is rejected 403. The in-process forward sends NO
@@ -357,9 +351,6 @@ function parseQueryLimit(
  * commands/serve.ts) passes the resolved platformDir through; tests pass the
  * fixture clone. Resolution is engine-SIDE — the webapp reads the decorated
  * text and never imports `@spec-engine/tracker` (D-09).
- *
- * `bindHost` is the address `spec serve` bound; the write routes' Host pin
- * accepts it alongside the loopback names.
  *
  * @spec SERV-009
  * @spec SERV-010

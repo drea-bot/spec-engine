@@ -5,7 +5,6 @@
 // packages enforce ONE contract — a rebinding hole patched in one surface but
 // not the other would be worse than none.
 
-/** The address `spec serve` binds when no --host is given. */
 export const DEFAULT_BIND_HOST = "127.0.0.1";
 
 /**
@@ -17,13 +16,9 @@ export const DEFAULT_BIND_HOST = "127.0.0.1";
 const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
 /**
- * True when `hostname` (a `URL.hostname`, port already stripped) is a name the
- * server bound to `bindHost` may answer on: a loopback name or `bindHost`
- * itself. Anything else is a DNS-rebinding attack — an attacker page whose
- * domain resolves to the bound address arrives carrying `Host: evil.example`.
- * Write routes require this in ADDITION to the Origin/Host same-origin check,
- * which compares two attacker-influenceable headers against each other and so
- * cannot catch a rebind where both agree.
+ * `hostname` is a `URL.hostname` (port already stripped). The Origin/Host
+ * same-origin check cannot replace this: a rebinding page's Origin and Host
+ * agree.
  *
  * @spec SERV-024
  */

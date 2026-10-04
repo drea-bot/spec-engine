@@ -4,21 +4,8 @@
 // @spec SERV-019
 // @spec SERV-023
 //
-// `spec serve [platformDir] [--port N] [--out path] [--host IP] [--token T] [--allow-writes]`
-// composes the engine HTTP API plane (`mountApi`) and the webapp SSR pages
-// (`mountWebapp`) onto a single Hono instance and binds Bun.serve to
-// ${host}:${port}. The `--probe` mode is preserved verbatim so the
-// compile-time asset-embedding smoke keeps passing.
-//
-// SECURITY (T-1-01 / T-5-05-01): the bind is ONE address, 127.0.0.1 unless
-// --host names another. `bindHostRefusal` (server/lan.ts) admits only a
-// literal loopback, RFC 1918, or 100.64.0.0/10 address — never a wildcard,
-// hostname, or public IP — and the source-grep test in `serve.test.ts`
-// asserts the all-zeros bind address NEVER appears in this file. A
-// non-loopback bind is wrapped in `lanGate`: an access token (cookie after a
-// one-time query-parameter exchange), the Host pin widened to exactly the
-// bound address so DNS rebinding stays blocked, and read-only unless
-// --allow-writes. --probe always binds loopback.
+// The all-zeros address must never appear in this file: serve.test.ts greps
+// for it as the guard against a wildcard bind.
 //
 // V12 path-containment: `--out` is resolved relative to platformDir and
 // MUST stay under platformDir — mirrors `commands/query.ts:113-121`.
@@ -87,11 +74,7 @@ function usageError(message: string): never {
   process.exit(EXIT.USAGE);
 }
 
-/**
- * The validated bind for this run: the --host address plus, on a
- * non-loopback address, the gate options (token from --token, then
- * SPEC_SERVE_TOKEN, then freshly generated). Exits 2 on a refused value.
- */
+/** Exits the process with 2 when --host or a pinned token is refused. */
 export function resolveBind(args: {
   host?: string | undefined;
   token?: string | undefined;
