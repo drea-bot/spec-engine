@@ -15,6 +15,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import packageJson from "../../package.json" with { type: "json" };
 import { type DomainHandle, TestPlatform } from "../testing/platform";
 import { specTag } from "../testing/specTag";
 import { buildMcpServer } from "./mcp";
@@ -76,6 +77,10 @@ async function call(name: string, args: Record<string, unknown> = {}): Promise<u
 }
 
 describe("spec mcp — tool surface (L4)", () => {
+  test("reports the published package version as its server version", () => {
+    expect(client.getServerVersion()?.version).toBe(packageJson.version);
+  });
+
   test("lists the twelve tools", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();

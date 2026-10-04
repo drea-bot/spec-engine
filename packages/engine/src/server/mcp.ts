@@ -11,6 +11,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DEFAULT_QUERY_LIMIT, LIMIT_MAX } from "@spec-engine/shared";
 import { z } from "zod";
+import packageJson from "../../package.json" with { type: "json" };
 import { domainScope, listDomainKeys, normalizeDomainKey } from "../authoring/domains";
 import { coldFreshTags, withIndex } from "../operations/_index";
 import { accept } from "../operations/accept";
@@ -44,7 +45,7 @@ function errorResult(message: string) {
  * `spec mcp` connects it to stdio; tests connect it to an InMemoryTransport pair.
  */
 export function buildMcpServer(platformDir: string): McpServer {
-  const server = new McpServer({ name: "spec", version: "0.0.6" });
+  const server = new McpServer({ name: "spec", version: packageJson.version });
   const fresh = <T>(fn: (storage: Parameters<typeof query>[0]) => T) =>
     withIndex({ platformDir, build: "fresh" }, (h) => fn(h.storage));
 
