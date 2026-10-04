@@ -1,6 +1,6 @@
 {
   "name": "@spec-engine/spec-engine",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Cross-repo spec engine — durable requirements with permanent IDs, bound to code via @spec tags, checked in CI. Ships the spec CLI, the local coverage webapp (spec serve), and offline docs (spec docs).",
   "license": "MIT",
   "type": "module",
