@@ -12,12 +12,13 @@
 // envelope.
 
 import {
+  DEFAULT_BIND_HOST,
   DEFAULT_QUERY_LIMIT,
   FILES_MAX,
   featureDisabledMessage,
   featureEnabled,
   ID_RE,
-  isLoopbackHostname,
+  isServedHostname,
   LIMIT_MAX,
   type PlatformInfo,
   REQUIREMENT_STATUSES,
@@ -174,10 +175,10 @@ function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
  * T-21-01 same-origin guard for the state-changing routes, plus a
  * DNS-rebinding Host pin (1.1). Two independent checks:
  *
- * 1. Host pin (unconditional): the server only ever binds 127.0.0.1
- *    (commands/serve.ts), so a write whose own Host is not a loopback name did
- *    not come from a page we served — it is a rebind (attacker DNS →
- *    127.0.0.1, `Host: evil.example`). The Origin/Host same-origin check below
+ * 1. Host pin (unconditional): the server binds exactly one address
+ *    (`bindHost`, commands/serve.ts), so a write whose own Host is neither a
+ *    loopback name nor that address did not come from a page we served — it is
+ *    a rebind (attacker DNS → the bound address, `Host: evil.example`). The Origin/Host same-origin check below
  *    cannot catch this because both headers are attacker-controlled and AGREE.
  *    The in-process `app.request()` forward synthesizes `http://localhost/…`,
  *    so it passes.
@@ -188,9 +189,9 @@ function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
  *
  * Returns a 403 Response on rejection, or `null` to proceed.
  */
-function rejectCrossOrigin(c: Context): Response | null {
+function rejectCrossOrigin(c: Context, bindHost: string): Response | null {
   const selfUrl = new URL(c.req.url);
-  if (!isLoopbackHostname(selfUrl.hostname)) {
+  if (!isServedHostname(selfUrl.hostname, bindHost)) {
     return c.json({ error: "cross-origin request rejected" }, 403);
   }
   const origin = c.req.header("origin");
@@ -357,10 +358,18 @@ function parseQueryLimit(
  * fixture clone. Resolution is engine-SIDE — the webapp reads the decorated
  * text and never imports `@spec-engine/tracker` (D-09).
  *
+ * `bindHost` is the address `spec serve` bound; the write routes' Host pin
+ * accepts it alongside the loopback names.
+ *
  * @spec SERV-009
  * @spec SERV-010
  */
-export function mountApi(app: Hono, storage: Storage, platformDir: string = process.cwd()): Hono {
+export function mountApi(
+  app: Hono,
+  storage: Storage,
+  platformDir: string = process.cwd(),
+  bindHost: string = DEFAULT_BIND_HOST,
+): Hono {
   // No-store middleware — applies to every `/api/*` route below. Registered
   // before the handlers so the header is set even on 400/404 responses.
   //
@@ -453,7 +462,7 @@ export function mountApi(app: Hono, storage: Storage, platformDir: string = proc
       if (!featureEnabled("editor")) {
         return c.json({ error: featureDisabledMessage("editor") }, 404);
       }
-      const originReject = rejectCrossOrigin(c);
+      const originReject = rejectCrossOrigin(c, bindHost);
       if (originReject) return originReject;
       const headerReject = rejectBadWriteHeaders(c);
       if (headerReject) return headerReject;
@@ -489,7 +498,7 @@ export function mountApi(app: Hono, storage: Storage, platformDir: string = proc
       if (!featureEnabled("editor")) {
         return c.json({ error: featureDisabledMessage("editor") }, 404);
       }
-      const originReject = rejectCrossOrigin(c);
+      const originReject = rejectCrossOrigin(c, bindHost);
       if (originReject) return originReject;
       const headerReject = rejectBadWriteHeaders(c);
       if (headerReject) return headerReject;
@@ -527,7 +536,7 @@ export function mountApi(app: Hono, storage: Storage, platformDir: string = proc
       if (!featureEnabled("editor")) {
         return c.json({ error: featureDisabledMessage("editor") }, 404);
       }
-      const originReject = rejectCrossOrigin(c);
+      const originReject = rejectCrossOrigin(c, bindHost);
       if (originReject) return originReject;
       const headerReject = rejectBadWriteHeaders(c);
       if (headerReject) return headerReject;
@@ -584,7 +593,7 @@ export function mountApi(app: Hono, storage: Storage, platformDir: string = proc
       if (!featureEnabled("editor")) {
         return c.json({ error: featureDisabledMessage("editor") }, 404);
       }
-      const originReject = rejectCrossOrigin(c);
+      const originReject = rejectCrossOrigin(c, bindHost);
       if (originReject) return originReject;
       const headerReject = rejectBadWriteHeaders(c);
       if (headerReject) return headerReject;
@@ -617,7 +626,7 @@ export function mountApi(app: Hono, storage: Storage, platformDir: string = proc
       if (!featureEnabled("editor")) {
         return c.json({ error: featureDisabledMessage("editor") }, 404);
       }
-      const originReject = rejectCrossOrigin(c);
+      const originReject = rejectCrossOrigin(c, bindHost);
       if (originReject) return originReject;
       const headerReject = rejectBadWriteHeaders(c);
       if (headerReject) return headerReject;

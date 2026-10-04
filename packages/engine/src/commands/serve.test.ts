@@ -1,17 +1,15 @@
 // packages/engine/src/commands/serve.test.ts
 //
 // Dogfood (spec self-consumes this repo — see spec-engine/):
-// @spec SERV-008
+// @spec SERV-019
 //
-// Plan 05-05 / Task 1 — locks SERV-01 at the CLI surface and the
-// loopback-only invariant for `spec serve`.
+// Locks the CLI surface and the single-address bind for `spec serve`.
 //
 // Three test families:
 //   1. SOURCE-GREP tests over `packages/engine/src/commands/serve.ts`:
-//        a. `hostname: "127.0.0.1"` appears ≥ 2 times (probe + real serve).
+//        a. The probe binds a hardcoded `hostname: "127.0.0.1"`; the real
+//           serve binds the validated `host`, whose default is loopback.
 //        b. The substring `0.0.0.0` never appears (case-sensitive).
-//        c. No `--host` / `--hostname` / `--bind` arg name is declared
-//           anywhere in the citty `args:` block.
 //   2. REAL-SERVE in-process smoke: `composeServeApp(storage)` returns a
 //      Hono that, bound on Bun.serve port 0 / 127.0.0.1, answers
 //      `/api/coverage` with 200 (proves engine + webapp are composed).
@@ -27,10 +25,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { DEFAULT_BIND_HOST } from "@spec-engine/shared";
 import { runIndex } from "../indexer/pipeline";
 import { openStorage } from "../storage/sqlite";
 import { cloneFixture } from "../testing/cloneFixture";
-import { composeServeApp, serveCommand } from "./serve";
+import { composeServeApp, resolveBind, serveCommand } from "./serve";
 
 const FIXTURE = resolve(import.meta.dir, "..", "..", "..", "..", "fixtures", "platform-fixture");
 const SERVE_SRC = resolve(import.meta.dir, "serve.ts");
@@ -90,35 +89,18 @@ async function runServe(args: Record<string, unknown>): Promise<number> {
 
 // ---------- 1. Source-grep tests (T-5-05-01 defense-in-depth) ----------
 
-describe("serve.ts source invariants (T-5-05-01 loopback bind)", () => {
-  test('hostname "127.0.0.1" appears at every Bun.serve construction site (≥ 2)', async () => {
+describe("serve.ts source invariants (T-5-05-01 single-address bind)", () => {
+  test("the probe binds hardcoded loopback; the real serve binds only the validated host", async () => {
     const src = await Bun.file(SERVE_SRC).text();
-    const matches = src.match(/hostname:\s*"127\.0\.0\.1"/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    const hostnames = [...src.matchAll(/hostname:\s*([^,\n]+)/g)].map((m) => m[1]);
+    expect(hostnames).toEqual(['"127.0.0.1"', "host"]);
+    expect(DEFAULT_BIND_HOST).toBe("127.0.0.1");
+    expect(src).toContain("default: DEFAULT_BIND_HOST");
   });
 
   test("the substring 0.0.0.0 NEVER appears in serve.ts (defense in depth)", async () => {
     const src = await Bun.file(SERVE_SRC).text();
     expect(src.includes("0.0.0.0")).toBe(false);
-  });
-
-  test("serve.ts does NOT declare a --host / --hostname / --bind citty arg", async () => {
-    const src = await Bun.file(SERVE_SRC).text();
-    // Strip comment lines + the hardcoded `hostname:` Bun.serve lines so the
-    // search can't false-positive on the source comments or the literal
-    // hostname assignment.
-    const lines = src.split("\n").filter((line) => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) {
-        return false;
-      }
-      // The `hostname: "127.0.0.1"` lines are the only legitimate sites.
-      if (/hostname:\s*"127\.0\.0\.1"/.test(trimmed)) return false;
-      return true;
-    });
-    const stripped = lines.join("\n");
-    // A citty arg declaration shape: `host: {`, `hostname: {`, `bind: {`.
-    expect(/(\b(host|hostname|bind)\s*:\s*\{)/.test(stripped)).toBe(false);
   });
 });
 
@@ -186,6 +168,58 @@ describe("serveCommand argv validation", () => {
 });
 
 // ---------- RED-11: pre-index / pre-spec guidance ----------
+
+describe("serveCommand --host / --token", () => {
+  test.each(["0.0.0.0", "::", "spec.example", "8.8.8.8"])("--host %s → exit 2", async (host) => {
+    // @spec SERV-020 integration
+    expect(await runServe({ probe: false, port: "0", host, platformDir: clone })).toBe(2);
+    expect(errs.join("\n")).toContain("--host");
+  });
+
+  test("the default bind is loopback with no token gate", () => {
+    // @spec SERV-019 unit
+    expect(resolveBind({})).toEqual({ host: "127.0.0.1", lan: null });
+  });
+
+  test("a private --host gets a random token, read-only unless --allow-writes", () => {
+    // @spec SERV-023 unit
+    const { lan } = resolveBind({ host: "192.168.1.141" });
+    expect(lan?.token).toMatch(/^[0-9a-f]{64}$/);
+    expect(lan?.allowWrites).toBe(false);
+    expect(resolveBind({ host: "10.0.0.2", allowWrites: true }).lan?.allowWrites).toBe(true);
+  });
+
+  test("--token wins over SPEC_SERVE_TOKEN, which wins over a random token", () => {
+    // @spec SERV-023 unit
+    const prior = process.env.SPEC_SERVE_TOKEN;
+    process.env.SPEC_SERVE_TOKEN = "env-token-0123456789";
+    try {
+      expect(resolveBind({ host: "10.0.0.2" }).lan?.token).toBe("env-token-0123456789");
+      const pinned = resolveBind({ host: "10.0.0.2", token: "flag-token-0123456789" });
+      expect(pinned.lan?.token).toBe("flag-token-0123456789");
+    } finally {
+      if (prior === undefined) delete process.env.SPEC_SERVE_TOKEN;
+      else process.env.SPEC_SERVE_TOKEN = prior;
+    }
+  });
+
+  test("a weak pinned token → exit 2", async () => {
+    // @spec SERV-023 integration
+    const code = await runServe({
+      probe: false,
+      host: "10.0.0.2",
+      token: "short",
+      platformDir: clone,
+    });
+    expect(code).toBe(2);
+  });
+
+  test("--probe ignores --host and stays on loopback", async () => {
+    // @spec SERV-012 integration
+    expect(await runServe({ probe: true, host: "192.168.1.141" })).toBe(0);
+    expect(logs.join("\n")).toContain("serve --probe OK");
+  });
+});
 
 describe("spec serve — pre-index guidance (RED-11)", () => {
   test("non-platform dir: friendly message + exit 2 (not 'failed to start'), no .spec-engine artifact", async () => {

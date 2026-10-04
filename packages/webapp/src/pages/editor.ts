@@ -36,10 +36,11 @@
 // asset.
 
 import {
+  DEFAULT_BIND_HOST,
   type Diagnostic,
   featureDisabledMessage,
   featureEnabled,
-  isLoopbackHostname,
+  isServedHostname,
 } from "@spec-engine/shared";
 import type { Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -57,18 +58,18 @@ const MAX_EDITOR_BODY_BYTES = 64 * 1024;
 /**
  * CR-01 same-origin guard + DNS-rebinding Host pin (1.1) for the browser-facing
  * editor POSTs. Mirrors the engine's `rejectCrossOrigin`:
- *   1. Host pin (unconditional): the server binds 127.0.0.1 only, so a request
- *      whose own Host is not a loopback name is a rebind (attacker DNS →
- *      127.0.0.1) — reject. The same-origin check below cannot see it because
+ *   1. Host pin (unconditional): the server binds `bindHost` only, so a request
+ *      whose own Host is neither a loopback name nor that address is a rebind
+ *      (attacker DNS → the bound address) — reject. The same-origin check below cannot see it because
  *      the attacker's Origin and Host agree.
  *   2. Same-origin: a present `Origin` whose host differs from the request host
  *      (or an unparseable Origin) is a cross-site post → reject.
  * A same-origin form post carries a matching Origin (or, for the in-process
  * `app.request` forward, none, and a `localhost` Host) and is allowed.
  */
-function crossOriginRejected(c: Context): boolean {
+function crossOriginRejected(c: Context, bindHost: string): boolean {
   const selfUrl = new URL(c.req.url);
-  if (!isLoopbackHostname(selfUrl.hostname)) return true;
+  if (!isServedHostname(selfUrl.hostname, bindHost)) return true;
   const origin = c.req.header("origin");
   if (origin === undefined) return false;
   try {
@@ -178,7 +179,7 @@ async function renderResult(res: Response): Promise<ReturnType<typeof html>> {
  * and `POST /editor/amend` (form-forward handlers). Each POST handler closes
  * over `app` so it forwards to the engine `/api/requirements` routes in-process.
  */
-export function mountEditor(app: Hono): void {
+export function mountEditor(app: Hono, bindHost: string = DEFAULT_BIND_HOST): void {
   app.get("/editor", (c) => {
     if (!featureEnabled("editor")) return c.html(comingSoonDoc("editor", "Editor"));
     const body = html`
@@ -239,7 +240,8 @@ export function mountEditor(app: Hono): void {
     // Flag off means the endpoints are off too — hiding the form is not
     // turning the feature off (D4a).
     if (!featureEnabled("editor")) return c.html(rejectPage(featureDisabledMessage("editor")), 404);
-    if (crossOriginRejected(c)) return c.html(rejectPage("cross-origin request rejected"), 403);
+    if (crossOriginRejected(c, bindHost))
+      return c.html(rejectPage("cross-origin request rejected"), 403);
     const form = (await c.req.parseBody()) as Record<string, unknown>;
     const statement = field(form, "statement");
     const why = field(form, "why");
@@ -266,7 +268,8 @@ export function mountEditor(app: Hono): void {
 
   app.post("/editor/amend", editorBodyLimit, async (c) => {
     if (!featureEnabled("editor")) return c.html(rejectPage(featureDisabledMessage("editor")), 404);
-    if (crossOriginRejected(c)) return c.html(rejectPage("cross-origin request rejected"), 403);
+    if (crossOriginRejected(c, bindHost))
+      return c.html(rejectPage("cross-origin request rejected"), 403);
     const form = (await c.req.parseBody()) as Record<string, unknown>;
     const id = field(form, "id");
     const statement = field(form, "statement");

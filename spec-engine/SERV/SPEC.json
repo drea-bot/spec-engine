@@ -1,7 +1,7 @@
 {
   "key": "SERV",
   "owner": null,
-  "updated": "2026-09-05",
+  "updated": "2026-10-04",
   "scope": "The spec serve local webapp and /api/* over the index. Belongs here: the server-rendered pages; the /api/* route contracts; loopback-only binding. Does not belong here: the one-model-one-seam promise (SCHM). Boundary case: loopback-only is SERV's promise even though the data model it serves is SCHM's.",
   "grammar": "ears",
   "requirements": [
@@ -120,17 +120,18 @@
     },
     {
       "id": "SERV-008",
-      "status": "active",
+      "status": "superseded",
       "statement": "The spec serve command shall serve the webapp and /api/* routes over the derived index, bound to 127.0.0.1 only, with no flag to widen the bind address.",
       "why": "A non-loopback bind would expose the index and its query surface to the network from a tool built for a trusted local caller.",
       "supersedes": null,
-      "supersededBy": null,
+      "supersededBy": "SERV-019",
       "relates": [],
       "livesIn": [
         "packages/engine/src/commands/serve.ts"
       ],
       "issues": [],
       "changedAtVersion": 1,
+      "supersededAtVersion": 9,
       "aliases": [],
       "cites": []
     },
@@ -298,6 +299,111 @@
           "id": "RED-187"
         }
       ],
+      "aliases": [],
+      "cites": []
+    },
+    {
+      "id": "SERV-019",
+      "status": "active",
+      "statement": "The spec serve command shall serve the webapp and /api/* routes over the derived index, bound to the single address named by --host, defaulting to 127.0.0.1.",
+      "why": "Binding every interface, or a default other than loopback, would publish the spec book to any network the machine joins.",
+      "supersedes": null,
+      "supersededBy": null,
+      "relates": [],
+      "livesIn": [
+        "packages/engine/src/commands/serve.ts"
+      ],
+      "issues": [],
+      "aliases": [],
+      "cites": []
+    },
+    {
+      "id": "SERV-020",
+      "status": "active",
+      "statement": "If --host is not a literal IP address in a loopback, RFC 1918, or 100.64.0.0/10 range, then the spec serve command shall refuse to start and exit 2.",
+      "why": "A wildcard, hostname, or public address would expose the server beyond one private interface.",
+      "supersedes": null,
+      "supersededBy": null,
+      "relates": [],
+      "livesIn": [
+        "packages/engine/src/server/lan.ts"
+      ],
+      "issues": [],
+      "aliases": [],
+      "cites": []
+    },
+    {
+      "id": "SERV-021",
+      "status": "active",
+      "statement": "While spec serve is bound to a non-loopback address, the spec serve command shall answer 401 to every request that carries neither a valid access token query parameter nor a valid access cookie.",
+      "why": "Without a token, any device on the same network could read the spec book.",
+      "supersedes": null,
+      "supersededBy": null,
+      "relates": [],
+      "livesIn": [
+        "packages/engine/src/server/lan.ts"
+      ],
+      "issues": [],
+      "aliases": [],
+      "cites": []
+    },
+    {
+      "id": "SERV-022",
+      "status": "active",
+      "statement": "When a request on a non-loopback bind carries a valid access token query parameter, the spec serve command shall set an HttpOnly SameSite=Strict access cookie and redirect to the same URL without the token.",
+      "why": "A token left in the address bar leaks through history, screenshots, and shared links.",
+      "supersedes": null,
+      "supersededBy": null,
+      "relates": [],
+      "livesIn": [
+        "packages/engine/src/server/lan.ts"
+      ],
+      "issues": [],
+      "aliases": [],
+      "cites": []
+    },
+    {
+      "id": "SERV-023",
+      "status": "active",
+      "statement": "When spec serve starts on a non-loopback address, the spec serve command shall print the URL carrying the access token: the --token or SPEC_SERVE_TOKEN value when given, otherwise a fresh random token of at least 128 bits.",
+      "why": "The owner cannot open the server from another machine without the token, and a guessable token admits anyone on the network.",
+      "supersedes": null,
+      "supersededBy": null,
+      "relates": [],
+      "livesIn": [
+        "packages/engine/src/commands/serve.ts"
+      ],
+      "issues": [],
+      "aliases": [],
+      "cites": []
+    },
+    {
+      "id": "SERV-024",
+      "status": "active",
+      "statement": "If a request's Host is neither a loopback name nor the bound --host address, then the spec serve command shall reject it with 403.",
+      "why": "A DNS-rebinding page reaches the server under an attacker hostname; pinning the Host blocks it.",
+      "supersedes": null,
+      "supersededBy": null,
+      "relates": [],
+      "livesIn": [
+        "packages/engine/src/server/lan.ts"
+      ],
+      "issues": [],
+      "aliases": [],
+      "cites": []
+    },
+    {
+      "id": "SERV-025",
+      "status": "active",
+      "statement": "While spec serve is bound to a non-loopback address without --allow-writes, the spec serve command shall refuse every write with 403: any non-GET request and any request that resolves provenance issues through the tracker.",
+      "why": "A leaked token would otherwise let another device change the spec book or its tracker sidecar.",
+      "supersedes": null,
+      "supersededBy": null,
+      "relates": [],
+      "livesIn": [
+        "packages/engine/src/server/lan.ts"
+      ],
+      "issues": [],
       "aliases": [],
       "cites": []
     }

@@ -213,7 +213,7 @@ Branch on exit codes, not on output text.
 | `spec move <KEY-NNN> <NEW-DOMAIN> [platformDir]` | Cross-domain supersede | yes (object) | 0 / 2 |
 | `spec amend <KEY-NNN> [platformDir]` | Revise an unshipped entry in place | yes (object) | 0 / 2 |
 | `spec accept <KEY-NNN> [platformDir]` | Promote a Draft requirement to Active | yes (object) | 0 / 2 |
-| `spec serve [platformDir] [--port N]` | Local webapp + `/api/*` over the index | n/a (HTTP) | 0 / 1 / 2 |
+| `spec serve [platformDir] [--port N] [--host IP]` | Local webapp + `/api/*` over the index | n/a (HTTP) | 0 / 1 / 2 |
 | `spec docs [--port N]` | Serve the bundled docs site offline | n/a (HTTP) | 0 / 1 / 2 |
 | `spec mcp [platformDir]` | MCP server over stdio | n/a (JSON-RPC) | 0 / 2 |
 
@@ -649,8 +649,18 @@ Exit: 0 / 2 (the target is not Draft: nothing is written).
 
 ### spec serve
 
-Binds `127.0.0.1` only. `--port 0` (default) picks a free port. `--probe`
-boots, fetches `/`, and exits 0 or 1.
+Binds one address: `127.0.0.1`, or `--host <ip>` (a literal loopback,
+RFC 1918, or `100.64/10` address only; anything else exits 2). `--port 0`
+(default) picks a free port. `--probe` boots on loopback, fetches `/`, and
+exits 0 or 1.
+
+A non-loopback `--host` is LAN mode: stdout prints
+`http://<ip>:<port>/?token=…`; every request needs that token (the query
+parameter is exchanged for an `HttpOnly; SameSite=Strict` cookie, then a 302
+drops it), else 401. A `Host` other than loopback or the bound address is
+403. Read-only unless `--allow-writes`: non-GET requests, `/provenance`, and
+`/api/provenance?resolve=1` answer 403. `--token` / `SPEC_SERVE_TOKEN` pin
+the token (≥ 16 of `A-Z a-z 0-9 _ -`); otherwise it is 256 random bits.
 
 Always-on routes: `/`, `/requirements[/:id]`, `/propagation/:id`,
 `/api/coverage`, `/api/report`, `/api/repos`, `/api/platform`,

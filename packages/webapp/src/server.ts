@@ -9,6 +9,7 @@
 // IMPORTANT: this package may NOT import bun:sqlite, node:fs, fs, bun,
 // node:path, or anything from @spec-engine/spec-engine (enforced by D-09 lint).
 
+import { DEFAULT_BIND_HOST } from "@spec-engine/shared";
 import { Hono } from "hono";
 // Bun inlines the file as a string when imported with the `text` attribute;
 // the `.txt` extension is what types the import as a string, and
@@ -56,7 +57,7 @@ export function createApp(): Hono {
  * has `/` bound to the placeholder. The real-serve composer
  * builds a fresh `new Hono()` and calls both mount functions on it.
  */
-export function mountWebapp(app: Hono): Hono {
+export function mountWebapp(app: Hono, bindHost: string = DEFAULT_BIND_HOST): Hono {
   // Error boundary first: a page whose API read fails (e.g. the engine's
   // storage layer is unavailable — sandboxed file locks, contention) renders
   // a readable error page with the engine's hint instead of Hono's bare-text
@@ -68,7 +69,7 @@ export function mountWebapp(app: Hono): Hono {
   mountQuery(app);
   mountRelations(app);
   mountProvenance(app);
-  mountEditor(app);
+  mountEditor(app, bindHost);
   mountSetup(app);
   mountGlossary(app);
   mountLogs(app);

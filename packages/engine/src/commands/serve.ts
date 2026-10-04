@@ -1,21 +1,24 @@
 // packages/engine/src/commands/serve.ts
 //
 // Dogfood (spec self-consumes this repo — see spec-engine/):
-// @spec SERV-008
+// @spec SERV-019
+// @spec SERV-023
 //
-// `spec serve [platformDir] [--port N] [--out path]`
+// `spec serve [platformDir] [--port N] [--out path] [--host IP] [--token T] [--allow-writes]`
 // composes the engine HTTP API plane (`mountApi`) and the webapp SSR pages
 // (`mountWebapp`) onto a single Hono instance and binds Bun.serve to
-// 127.0.0.1:${port}. The `--probe` mode is preserved verbatim so the
+// ${host}:${port}. The `--probe` mode is preserved verbatim so the
 // compile-time asset-embedding smoke keeps passing.
 //
-// SECURITY (T-1-01 / T-5-05-01 mitigation): the hostname is hardcoded to
-// 127.0.0.1 at EVERY Bun.serve construction site. There is no --host /
-// --hostname / --bind flag and the source-grep test in
-// `test/serve-loopback.test.ts` asserts the all-zeros bind address NEVER
-// appears in this file. The webapp is a local dev tool only — exposing it on a
-// public interface would defeat the read-only invariant (the user could
-// then accept untrusted SQL via the FTS5 query route, etc.).
+// SECURITY (T-1-01 / T-5-05-01): the bind is ONE address, 127.0.0.1 unless
+// --host names another. `bindHostRefusal` (server/lan.ts) admits only a
+// literal loopback, RFC 1918, or 100.64.0.0/10 address — never a wildcard,
+// hostname, or public IP — and the source-grep test in `serve.test.ts`
+// asserts the all-zeros bind address NEVER appears in this file. A
+// non-loopback bind is wrapped in `lanGate`: an access token (cookie after a
+// one-time query-parameter exchange), the Host pin widened to exactly the
+// bound address so DNS rebinding stays blocked, and read-only unless
+// --allow-writes. --probe always binds loopback.
 //
 // V12 path-containment: `--out` is resolved relative to platformDir and
 // MUST stay under platformDir — mirrors `commands/query.ts:113-121`.
@@ -32,7 +35,7 @@
 
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import type { Storage } from "@spec-engine/shared";
+import { DEFAULT_BIND_HOST, type Storage } from "@spec-engine/shared";
 import { createApp, mountWebapp } from "@spec-engine/webapp/server";
 import { defineCommand } from "citty";
 import { Hono } from "hono";
@@ -41,6 +44,15 @@ import { assertSpecPlatform } from "../indexer/discover";
 import { runIndex } from "../indexer/pipeline";
 import { maybePromptForOnboarding } from "../onboarding/prompt";
 import { mountApi } from "../server/api";
+import {
+  bindHostRefusal,
+  generateToken,
+  isLoopbackAddress,
+  type LanGateOptions,
+  lanGate,
+  pinnedTokenRefusal,
+  urlHost,
+} from "../server/lan";
 import { openStorage } from "../storage/sqlite";
 import { platformDirArg, resolvePlatformDir } from "./_args";
 import { assertContainedPath, handleNotAPlatform, handleStorageUnavailable } from "./_shared";
@@ -59,11 +71,50 @@ import { assertContainedPath, handleNotAPlatform, handleStorageUnavailable } fro
  * under `<platformDir>/.spec-engine/`. Defaults to `process.cwd()` so existing
  * callers/tests that omit it are unchanged (mountApi degrades to cwd too).
  */
-export function composeServeApp(storage: Storage, platformDir: string = process.cwd()): Hono {
+export function composeServeApp(
+  storage: Storage,
+  platformDir: string = process.cwd(),
+  bindHost: string = DEFAULT_BIND_HOST,
+): Hono {
   const app = new Hono();
-  mountApi(app, storage, platformDir);
-  mountWebapp(app);
+  mountApi(app, storage, platformDir, bindHost);
+  mountWebapp(app, bindHost);
   return app;
+}
+
+function usageError(message: string): never {
+  console.error(`spec serve: ${message}`);
+  process.exit(EXIT.USAGE);
+}
+
+/**
+ * The validated bind for this run: the --host address plus, on a
+ * non-loopback address, the gate options (token from --token, then
+ * SPEC_SERVE_TOKEN, then freshly generated). Exits 2 on a refused value.
+ */
+export function resolveBind(args: {
+  host?: string | undefined;
+  token?: string | undefined;
+  allowWrites?: boolean | undefined;
+}): { host: string; lan: LanGateOptions | null } {
+  const host = args.host ?? DEFAULT_BIND_HOST;
+  const hostRefusal = bindHostRefusal(host);
+  if (hostRefusal !== null) usageError(hostRefusal);
+  if (isLoopbackAddress(host)) return { host, lan: null };
+
+  const pinned = args.token ?? process.env.SPEC_SERVE_TOKEN;
+  if (pinned !== undefined) {
+    const tokenRefusal = pinnedTokenRefusal(pinned);
+    if (tokenRefusal !== null) usageError(tokenRefusal);
+  }
+  return {
+    host,
+    lan: {
+      bindHost: host,
+      token: pinned ?? generateToken(),
+      allowWrites: args.allowWrites === true,
+    },
+  };
 }
 
 /**
@@ -118,15 +169,29 @@ export const serveCommand = defineCommand({
   meta: {
     name: "serve",
     description:
-      "Run the local webapp. Binds 127.0.0.1 on --port (loopback only — no --host). --probe is the SERV-04 asset-embedding smoke.",
+      "Run the local webapp. Binds 127.0.0.1 on --port, or one private --host address behind an access token. --probe is the SERV-04 asset-embedding smoke.",
   },
   args: {
     platformDir: platformDirArg,
     port: {
       type: "string",
       default: "4000",
+      description: "Port (default 4000; 0 = ephemeral).",
+    },
+    host: {
+      type: "string",
+      default: DEFAULT_BIND_HOST,
       description:
-        "Port (default 4000; 0 = ephemeral). Hostname is hardcoded 127.0.0.1 (T-1-01); no --host accepted.",
+        "Address to bind (default 127.0.0.1). Only a literal loopback, RFC 1918, or 100.64.0.0/10 IP; a non-loopback address requires the printed access token and is read-only.",
+    },
+    token: {
+      type: "string",
+      description:
+        "Pin the access token for a non-loopback --host (else SPEC_SERVE_TOKEN, else random). At least 16 of A-Z a-z 0-9 _ -.",
+    },
+    allowWrites: {
+      type: "boolean",
+      description: "On a non-loopback --host, permit editor writes and tracker resolution.",
     },
     out: {
       type: "string",
@@ -135,7 +200,7 @@ export const serveCommand = defineCommand({
     probe: {
       type: "boolean",
       description:
-        "Smoke test: bind ephemeral port on 127.0.0.1, GET /, assert body contains placeholder, exit.",
+        "Smoke test: bind ephemeral port on 127.0.0.1 (ignores --host), GET /, assert body contains placeholder, exit.",
     },
     noPrompt: {
       type: "boolean",
@@ -167,6 +232,8 @@ export const serveCommand = defineCommand({
       process.exit(EXIT.USAGE);
       return;
     }
+
+    const { host, lan } = resolveBind(args);
 
     const platformDir = resolvePlatformDir(args);
     const outArg = args.out;
@@ -247,13 +314,11 @@ export const serveCommand = defineCommand({
         await runIndex({ platformDir, storage });
       }
 
-      // Build the composed app and bind Bun.serve. SECURITY: hardcoded
-      // loopback (T-1-01 / T-5-05-01 mitigation). NO --host arg surface.
-      const app = composeServeApp(storage, platformDir);
+      const app = composeServeApp(storage, platformDir, host);
       server = Bun.serve({
         port,
-        hostname: "127.0.0.1",
-        fetch: app.fetch,
+        hostname: host,
+        fetch: lan === null ? app.fetch : lanGate(app.fetch, lan),
       });
     } catch (err) {
       storage.close();
@@ -262,7 +327,7 @@ export const serveCommand = defineCommand({
       // trips it is the listRepos()/runIndex read-write pass above — the
       // same locks every later request would need.
       handleStorageUnavailable(err, dbPath);
-      console.error(`spec serve: failed to start on 127.0.0.1:${port}:`, err);
+      console.error(`spec serve: failed to start on ${urlHost(host, port)}:`, err);
       process.exit(EXIT.FAILURE);
       // The explicit return makes the control-flow termination
       // local. `process.exit` is typed `never`, but if a future test harness
@@ -275,6 +340,11 @@ export const serveCommand = defineCommand({
 
     // Do NOT close storage here — the server lifecycle outlives this run()
     // call (T-5-05-05). SIGINT releases the file descriptor.
-    console.log(`spec: serving on http://127.0.0.1:${server.port}`);
+    if (lan === null) {
+      console.log(`spec: serving on ${server.url.origin}`);
+      return;
+    }
+    console.log(`spec: serving on ${server.url.origin}/?token=${lan.token}`);
+    console.log(lan.allowWrites ? "spec: writes ALLOWED (--allow-writes)" : "spec: read-only");
   },
 });

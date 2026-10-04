@@ -131,7 +131,7 @@ Each of these exists exactly once, and a grep fence in `scripts/arch-fences.sh` 
 
 ## HTTP path
 
-1. `spec serve` composes the engine's API routes and the webapp's pages onto one Hono app, bound to `127.0.0.1`.
+1. `spec serve` composes the engine's API routes and the webapp's pages onto one Hono app, bound to `127.0.0.1` or one private `--host` address. A non-loopback bind wraps the app's fetch in a gate (token, Host pin, read-only) that the in-process page reads never pass through.
 2. Pages call `/api/*` in-process. There is no loopback fetch.
 3. A feature whose flag is off answers 404 on its endpoints and renders a placeholder page.
 

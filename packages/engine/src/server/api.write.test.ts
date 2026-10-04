@@ -364,3 +364,23 @@ describe("1.1 DNS-rebinding — a non-loopback Host is rejected 403 even when Or
     expect(res.status).toBe(201);
   });
 });
+
+describe("the Host pin on a --host bind accepts exactly the bound address", () => {
+  const LAN = "192.168.1.141";
+  const post = (target: typeof app) =>
+    target.request(`http://${LAN}:4400/api/requirements`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Origin: `http://${LAN}:4400` },
+      body: JSON.stringify({ key: "BILLING", statement: "A write on the bound LAN address." }),
+    });
+
+  test("a write whose Host is the bound address succeeds", async () => {
+    // @spec SERV-024 integration
+    expect((await post(composeServeApp(storage, platformDir, LAN))).status).toBe(201);
+  });
+
+  test("the same Host is a rebind when the server is bound to loopback", async () => {
+    // @spec SERV-024 integration
+    expect((await post(app)).status).toBe(403);
+  });
+});

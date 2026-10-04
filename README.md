@@ -231,13 +231,34 @@ shows "coming soon" in the nav and answers 404 on its endpoints.
 
 ### Access
 
-There is no login or API key. Access is decided by where the request comes from:
+By default there is no login or API key. Access is decided by where the request comes
+from:
 
-- The server binds `127.0.0.1` only. There is no `--host` flag. Use an SSH tunnel to
-  reach it from another machine.
-- A request whose `Host` header is not a loopback name is rejected, which blocks DNS
-  rebinding.
+- The server binds one address: `127.0.0.1` unless `--host` names another.
+- A request whose `Host` header is neither a loopback name nor the bound address is
+  rejected, which blocks DNS rebinding.
 - Write routes reject a cross-origin `Origin` header.
+
+### LAN mode
+
+To open the webapp from another machine on the same private network:
+
+```bash
+spec serve --host 192.168.1.141 --port 4400 .
+# spec: serving on http://192.168.1.141:4400/?token=…
+```
+
+- `--host` takes only a literal loopback, RFC 1918 (`10/8`, `172.16/12`,
+  `192.168/16`), or `100.64/10` (Tailscale) address. `0.0.0.0`, `::`, hostnames, and
+  public addresses are refused.
+- Every request needs the access token. Opening the printed URL swaps the token for an
+  `HttpOnly; SameSite=Strict` cookie and drops it from the address bar. Anything
+  without it gets 401.
+- The token is random per start. Pin one with `--token` or `SPEC_SERVE_TOKEN`
+  (at least 16 of `A-Z a-z 0-9 _ -`).
+- The server is read-only: editor writes and tracker resolution (the provenance page)
+  answer 403. Pass `--allow-writes` to permit them.
+- `--probe` always binds loopback.
 
 ### Tracker token
 

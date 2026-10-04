@@ -5,27 +5,28 @@
 // packages enforce ONE contract — a rebinding hole patched in one surface but
 // not the other would be worse than none.
 
+/** The address `spec serve` binds when no --host is given. */
+export const DEFAULT_BIND_HOST = "127.0.0.1";
+
 /**
- * The hostnames a loopback-bound server legitimately answers on. `spec serve`
- * binds 127.0.0.1 exclusively (commands/serve.ts), and Bun's in-process
- * `app.request(path)` forward synthesizes `http://localhost/…`, so a genuine
- * request always arrives with one of these. Anything else is a DNS-rebinding
- * attack: an attacker page whose domain resolves to 127.0.0.1 reaches the
- * loopback server carrying `Host: evil.example`.
- *
- * `URL.hostname` returns the bracketed form for IPv6, so both `::1` and
- * `[::1]` are listed.
+ * Loopback names every server answers on. Bun's in-process
+ * `app.request(path)` forward synthesizes `http://localhost/…`, so a forward
+ * always carries one of these. `URL.hostname` returns the bracketed form for
+ * IPv6, so both `::1` and `[::1]` are listed.
  */
 const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
 /**
- * True when `hostname` (a `URL.hostname`, port already stripped) is a loopback
- * name the local server may answer on. Write routes require this in ADDITION
- * to the Origin/Host same-origin check: that check compares two
- * attacker-influenceable headers against each other and so cannot catch a
- * rebind where both agree on a non-loopback host. Pinning the Host to loopback
- * closes the gap because the server never binds a routable interface.
+ * True when `hostname` (a `URL.hostname`, port already stripped) is a name the
+ * server bound to `bindHost` may answer on: a loopback name or `bindHost`
+ * itself. Anything else is a DNS-rebinding attack — an attacker page whose
+ * domain resolves to the bound address arrives carrying `Host: evil.example`.
+ * Write routes require this in ADDITION to the Origin/Host same-origin check,
+ * which compares two attacker-influenceable headers against each other and so
+ * cannot catch a rebind where both agree.
+ *
+ * @spec SERV-024
  */
-export function isLoopbackHostname(hostname: string): boolean {
-  return LOOPBACK_HOSTNAMES.has(hostname);
+export function isServedHostname(hostname: string, bindHost: string = DEFAULT_BIND_HOST): boolean {
+  return LOOPBACK_HOSTNAMES.has(hostname) || hostname === bindHost;
 }
