@@ -224,7 +224,7 @@ describe("serveCommand --host / --token", () => {
 
   test("a private --host gets a random token, read-only unless --allow-writes", () => {
     // @spec SERV-023 unit
-    const { lan } = resolveBind({ host: "192.168.1.141" });
+    const { lan } = resolveBind({ host: "192.168.0.10" });
     expect(lan?.token).toMatch(/^[0-9a-f]{64}$/);
     expect(lan?.allowWrites).toBe(false);
     expect(resolveBind({ host: "10.0.0.2", allowWrites: true }).lan?.allowWrites).toBe(true);
@@ -257,7 +257,7 @@ describe("serveCommand --host / --token", () => {
 
   test("--probe ignores --host and stays on loopback", async () => {
     // @spec SERV-012 integration
-    expect(await runServe({ probe: true, host: "192.168.1.141" })).toBe(0);
+    expect(await runServe({ probe: true, host: "192.168.0.10" })).toBe(0);
     expect(logs.join("\n")).toContain("serve --probe OK");
   });
 });

@@ -248,9 +248,12 @@ from:
 To open the webapp from another machine on the same private network:
 
 ```bash
-spec serve --host 192.168.1.141 --port 4400 .
-# spec: serving my-platform on http://192.168.1.141:4400/?token=…
+spec serve --host YOUR_LAN_IP --port 4400 .
+# spec: serving my-platform on http://YOUR_LAN_IP:4400/?token=…
 ```
+
+`YOUR_LAN_IP` is this machine's address on the network (macOS: `ipconfig getifaddr en0`;
+Linux: `hostname -I`).
 
 - `--host` takes only a literal loopback, RFC 1918 (`10/8`, `172.16/12`,
   `192.168/16`), or `100.64/10` (Tailscale) address. `0.0.0.0`, `::`, hostnames, and

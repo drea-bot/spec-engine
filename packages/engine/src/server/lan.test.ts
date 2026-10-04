@@ -9,7 +9,7 @@ import {
   urlHost,
 } from "./lan";
 
-const HOST = "192.168.1.141";
+const HOST = "192.168.0.10";
 const TOKEN = "a".repeat(32);
 const BASE = `http://${HOST}:4400`;
 
@@ -43,7 +43,7 @@ describe("bindHostRefusal", () => {
     "10.0.0.5",
     "172.16.0.1",
     "172.31.255.255",
-    "192.168.1.141",
+    "192.168.0.10",
     "100.64.0.1",
   ])("accepts %s", (host) => {
     // @spec SERV-020 unit

@@ -366,7 +366,7 @@ describe("1.1 DNS-rebinding — a non-loopback Host is rejected 403 even when Or
 });
 
 describe("the Host pin on a --host bind accepts exactly the bound address", () => {
-  const LAN = "192.168.1.141";
+  const LAN = "192.168.0.10";
   const post = (target: typeof app) =>
     target.request(`http://${LAN}:4400/api/requirements`, {
       method: "POST",
