@@ -210,8 +210,12 @@ As a Claude Code hook, so an agent is stopped the moment an edit would lose a re
 
 ```console
 $ spec serve . --port 4319
-spec: serving on http://127.0.0.1:4319
+spec: serving my-platform on http://127.0.0.1:4319
 ```
+
+Every page title, the sidebar, and `/api/platform` carry the platform's name (its
+platform file's `name`, else its directory's name) so two servers are never confused.
+No surface shows a filesystem path.
 
 `--port 0` (the default) picks a free port. The webapp reads the index, so run
 `spec index . --fresh` after editing specs or tags.
@@ -245,7 +249,7 @@ To open the webapp from another machine on the same private network:
 
 ```bash
 spec serve --host 192.168.1.141 --port 4400 .
-# spec: serving on http://192.168.1.141:4400/?token=…
+# spec: serving my-platform on http://192.168.1.141:4400/?token=…
 ```
 
 - `--host` takes only a literal loopback, RFC 1918 (`10/8`, `172.16/12`,

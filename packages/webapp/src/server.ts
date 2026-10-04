@@ -11,6 +11,7 @@
 
 import { DEFAULT_BIND_HOST } from "@spec-engine/shared";
 import { Hono } from "hono";
+import { html as htmlTemplate } from "hono/html";
 // Bun inlines the file as a string when imported with the `text` attribute;
 // the `.txt` extension is what types the import as a string, and
 // `bun build --compile` embeds the raw file contents as UTF-8.
@@ -38,6 +39,30 @@ export function createApp(): Hono {
 }
 
 /**
+ * Prefixes every page's <title> with the platform name and adds it under the
+ * sidebar brand, so two servers on different platforms are told apart. Must
+ * be registered before the page routes for Hono to run it around them.
+ *
+ * @spec SERV-026
+ */
+function labelPlatform(app: Hono, platformName: string): void {
+  const name = htmlTemplate`${platformName}`.toString();
+  app.use("*", async (c, next) => {
+    await next();
+    if (!c.res.headers.get("content-type")?.startsWith("text/html")) return;
+    const body = (await c.res.text())
+      .replace("<title>Spec Engine", `<title>${name} · Spec Engine`)
+      .replace(
+        "<span>Spec Engine</span></a>",
+        `<span>Spec Engine</span><span class="sidebar-platform">${name}</span></a>`,
+      );
+    const headers = new Headers(c.res.headers);
+    headers.delete("content-length");
+    c.res = new Response(body, { status: c.res.status, headers });
+  });
+}
+
+/**
  * Mount the SSR pages onto an existing Hono app and return
  * the same app for chainability (RED-17 added /relations). Mirrors
  * `mountApi(app, storage)`'s "mutate-one-app" composition (RESEARCH Open
@@ -57,7 +82,12 @@ export function createApp(): Hono {
  * has `/` bound to the placeholder. The real-serve composer
  * builds a fresh `new Hono()` and calls both mount functions on it.
  */
-export function mountWebapp(app: Hono, bindHost: string = DEFAULT_BIND_HOST): Hono {
+export function mountWebapp(
+  app: Hono,
+  bindHost: string = DEFAULT_BIND_HOST,
+  platformName?: string,
+): Hono {
+  if (platformName !== undefined) labelPlatform(app, platformName);
   // Error boundary first: a page whose API read fails (e.g. the engine's
   // storage layer is unavailable — sandboxed file locks, contention) renders
   // a readable error page with the engine's hint instead of Hono's bare-text

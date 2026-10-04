@@ -406,6 +406,21 @@
       "issues": [],
       "aliases": [],
       "cites": []
+    },
+    {
+      "id": "SERV-026",
+      "status": "active",
+      "statement": "The spec serve and spec mcp commands shall identify the platform they serve by name — the platform file's name, else the platform directory's name — in their startup line, /api/platform, and every webapp page's title and sidebar, and never by a filesystem path.",
+      "why": "Two servers on different platforms look identical, so an agent or a person acts on the wrong spec book; a path would leak the host's directory layout to every LAN viewer.",
+      "supersedes": null,
+      "supersededBy": null,
+      "relates": [],
+      "livesIn": [
+        "packages/engine/src/indexer/discover.ts"
+      ],
+      "issues": [],
+      "aliases": [],
+      "cites": []
     }
   ]
 }

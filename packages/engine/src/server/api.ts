@@ -27,7 +27,7 @@ import {
 } from "@spec-engine/shared";
 import type { Context, Hono } from "hono";
 import { listDomainKeys, normalizeDomainKey } from "../authoring/domains";
-import { derivePlatformVersion, platformMode } from "../indexer/discover";
+import { derivePlatformVersion, platformMode, platformName } from "../indexer/discover";
 import { runIndex } from "../indexer/pipeline";
 import { type OpFailure, STATUS_FOR_REASON } from "../operations/_result";
 import { accept } from "../operations/accept";
@@ -406,7 +406,12 @@ export function mountApi(
 
   app.get("/api/platform", async (c) => {
     const version = await derivePlatformVersion(platformDir);
-    const info: PlatformInfo = { version, source: "derived", mode: platformMode(platformDir) };
+    const info: PlatformInfo = {
+      version,
+      name: platformName(platformDir),
+      source: "derived",
+      mode: platformMode(platformDir),
+    };
     return c.json(info);
   });
 

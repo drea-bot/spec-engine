@@ -195,6 +195,18 @@ code {
   display: block;
 }
 
+.sidebar-platform {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+}
+
 .sidebar-scroll {
   flex: 1;
   overflow-y: auto;

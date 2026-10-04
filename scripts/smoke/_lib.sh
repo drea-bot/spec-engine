@@ -73,7 +73,7 @@ serve_start() {
   PORT=""
   for _ in 1 2 3 4 5 6 7 8 9 10; do
     sleep 1
-    if grep -q 'spec: serving on http://127.0.0.1:' "$SERVE_LOG" 2>/dev/null; then
+    if grep -qE 'spec: serving .+ on http://127\.0\.0\.1:' "$SERVE_LOG" 2>/dev/null; then
       PORT=$(grep -oE 'http://127.0.0.1:[0-9]+' "$SERVE_LOG" | head -1 | grep -oE '[0-9]+$')
       break
     fi

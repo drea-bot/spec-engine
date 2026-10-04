@@ -40,7 +40,7 @@ import { createApp, mountWebapp } from "@spec-engine/webapp/server";
 import { defineCommand } from "citty";
 import { Hono } from "hono";
 import { EXIT, OUT_HELP, resolveDbPath } from "../constants";
-import { assertSpecPlatform } from "../indexer/discover";
+import { assertSpecPlatform, platformName } from "../indexer/discover";
 import { runIndex } from "../indexer/pipeline";
 import { maybePromptForOnboarding } from "../onboarding/prompt";
 import { mountApi } from "../server/api";
@@ -78,7 +78,7 @@ export function composeServeApp(
 ): Hono {
   const app = new Hono();
   mountApi(app, storage, platformDir, bindHost);
-  mountWebapp(app, bindHost);
+  mountWebapp(app, bindHost, platformName(platformDir));
   return app;
 }
 
@@ -340,11 +340,12 @@ export const serveCommand = defineCommand({
 
     // Do NOT close storage here — the server lifecycle outlives this run()
     // call (T-5-05-05). SIGINT releases the file descriptor.
+    const serving = `spec: serving ${platformName(platformDir)} on ${server.url.origin}`;
     if (lan === null) {
-      console.log(`spec: serving on ${server.url.origin}`);
+      console.log(serving);
       return;
     }
-    console.log(`spec: serving on ${server.url.origin}/?token=${lan.token}`);
+    console.log(`${serving}/?token=${lan.token}`);
     console.log(lan.allowWrites ? "spec: writes ALLOWED (--allow-writes)" : "spec: read-only");
   },
 });

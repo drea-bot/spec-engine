@@ -24,8 +24,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { DEFAULT_BIND_HOST } from "@spec-engine/shared";
+import { mountWebapp } from "@spec-engine/webapp/server";
+import { Hono } from "hono";
+import { platformName } from "../indexer/discover";
 import { runIndex } from "../indexer/pipeline";
 import { openStorage } from "../storage/sqlite";
 import { cloneFixture } from "../testing/cloneFixture";
@@ -133,6 +136,44 @@ describe("composeServeApp (real serve mode composition)", () => {
       server.stop();
       storage.close();
     }
+  });
+});
+
+describe("platform identity", () => {
+  test("the API and every page name the platform from its platform file, never a path", async () => {
+    // @spec SERV-026 integration
+    const storage = openStorage(resolve(clone, ".spec-engine", "index.sqlite"));
+    await runIndex({ platformDir: clone, storage });
+    try {
+      const app = composeServeApp(storage, clone);
+      const info = (await (await app.request("/api/platform")).json()) as { name: string };
+      expect(info.name).toBe("platform-fixture");
+      const page = await (await app.request("/")).text();
+      expect(page).toContain("<title>platform-fixture · Spec Engine");
+      expect(page).toContain('<span class="sidebar-platform">platform-fixture</span>');
+      expect(page).not.toContain(clone);
+    } finally {
+      storage.close();
+    }
+  });
+
+  test("a directory with no platform file is named by its directory", () => {
+    // @spec SERV-026 unit
+    const dir = mkdtempSync(join(tmpdir(), "named-platform-"));
+    try {
+      expect(platformName(dir)).toBe(basename(dir));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the page label escapes the name", async () => {
+    // @spec SERV-026 unit
+    const app = mountWebapp(new Hono(), "127.0.0.1", "<b>x</b>");
+    app.get("/probe", (c) => c.html("<title>Spec Engine</title>"));
+    expect(await (await app.request("/probe")).text()).toBe(
+      "<title>&lt;b&gt;x&lt;/b&gt; · Spec Engine</title>",
+    );
   });
 });
 

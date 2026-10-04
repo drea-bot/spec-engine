@@ -15,7 +15,7 @@
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { defineCommand } from "citty";
-import { assertSpecPlatform } from "../indexer/discover";
+import { assertSpecPlatform, platformName } from "../indexer/discover";
 import { buildMcpServer } from "../server/mcp";
 import { platformDirArg, resolvePlatformDir } from "./_args";
 import { handleNotAPlatform } from "./_shared";
@@ -39,7 +39,7 @@ export const mcpCommand = defineCommand({
     }
 
     const server = buildMcpServer(platformDir);
-    console.error(`spec mcp: serving ${platformDir} over stdio`);
+    console.error(`spec mcp: serving ${platformName(platformDir)} over stdio`);
     await server.connect(new StdioServerTransport());
     // connect() resolves once the transport is wired; the stdin listener
     // keeps the event loop alive until the harness disconnects.

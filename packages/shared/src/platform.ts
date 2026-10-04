@@ -11,6 +11,8 @@ export type PlatformMode = "single-repo" | "monorepo" | "multi-repo";
 export interface PlatformInfo {
   /** The derived platform version: the maximum domain version. */
   version: number;
+  /** The platform file's name, else the platform directory's name. Never a path. */
+  name: string;
   source: "derived";
   mode: PlatformMode;
 }

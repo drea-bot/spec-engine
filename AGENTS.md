@@ -652,7 +652,9 @@ Exit: 0 / 2 (the target is not Draft: nothing is written).
 Binds one address: `127.0.0.1`, or `--host <ip>` (a literal loopback,
 RFC 1918, or `100.64/10` address only; anything else exits 2). `--port 0`
 (default) picks a free port. `--probe` boots on loopback, fetches `/`, and
-exits 0 or 1.
+exits 0 or 1. The startup line, `/api/platform` (`name`), and every
+page's title and sidebar name the platform (platform file `name`, else the
+directory name), never a path; `spec mcp` logs the same name on stderr.
 
 A non-loopback `--host` is LAN mode: stdout prints
 `http://<ip>:<port>/?token=…`; every request needs that token (the query
